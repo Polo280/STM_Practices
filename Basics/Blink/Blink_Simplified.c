@@ -8,7 +8,7 @@ int main(void){
 	__HAL_RCC_GPIOA_CLK_ENABLE();
 
 	// Configure GPIO pins
-	GPIO_InitTypeDef GPIO_InitStruct;
+	GPIO_InitTypeDef GPIO_InitStruct; // Instruction to configure GPIOS relying on HAL
 	GPIO_InitStruct.Pin = GPIO_PIN_6;
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP; // Output push-pull mode
 	
