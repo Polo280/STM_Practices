@@ -84,7 +84,7 @@ int main(void){
 	UARTConfig();
 
 	// Variables to manage data
-	char data[25];
+	char data[30];
 
 	while(1){
 		// LED TOGGLE
@@ -95,7 +95,9 @@ int main(void){
 
 		// Sending data
 		if(HAL_GetTick() - time_aux2 >= TIME_TO_SAMPLE){
-			snprintf(data, sizeof(data), "Frecuencia: %lu\n", HAL_RCC_GetSysClockFreq());
+			snprintf(data, sizeof(data), "SysClock Freq: %lu\n", HAL_RCC_GetSysClockFreq());
+			HAL_UART_Transmit(&usb_uart, (uint8_t *)data, strlen(data), 50);
+			snprintf(data, sizeof(data), "Tick Freq: %d\n", HAL_GetTickFreq());
 			HAL_UART_Transmit(&usb_uart, (uint8_t *)data, strlen(data), 50);
 			time_aux2 = HAL_GetTick();
 		}
