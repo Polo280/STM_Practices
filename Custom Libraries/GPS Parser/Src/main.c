@@ -74,7 +74,7 @@ int main(void)
 
   // Test parser
   // char testing[100] = "$GPRMC,171640.087,A,3723.2475,N,12158.3416,W,0.13,309.62,120125,,,A*74";
-  char testing[100] = "$GPRMC,171640.087,A,,,,,0.13,309.62,120125,,,A*74";
+  char testing[100] = "$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47";
 
   while (1)
   {
@@ -98,7 +98,7 @@ int main(void)
 	  }
 
 	  // Parse GPS
-	  if(HAL_GetTick() - gps_aux >= 0){
+	  if(HAL_GetTick() - gps_aux >= TIME_TO_PARSE_GPS){
 		  splitNMEASentences(gps_buffer, nmea_sentences);
 
 		  // First sentence is trash
@@ -111,8 +111,8 @@ int main(void)
 
 	  // Transmit data through UART constantly
 	  if(HAL_GetTick() - uart_aux >= TIME_TO_PRINT_UART){
-		snprintf(tx_buff, sizeof(tx_buff), "Time: %lu, Stat: %c, Date: %lu\n",
-				gps_data.GPRMC_data.fix_time, gps_data.GPRMC_data.status, gps_data.GPRMC_data.date);
+		snprintf(tx_buff, sizeof(tx_buff), "Fix time: %lu, longitude: %f, altitude: %f\n",
+											gps_data.GPGGA_data.fix_time, gps_data.GPGGA_data.longitude, gps_data.GPGGA_data.altitude);
 //		strcpy(tx_buff, nmea_sentences[3]);
 		HAL_UART_Transmit(&huart2, (uint8_t *)tx_buff, strlen(tx_buff), 200);
 		uart_aux = HAL_GetTick();
