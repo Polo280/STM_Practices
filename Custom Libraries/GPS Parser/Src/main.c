@@ -13,7 +13,15 @@
 #define TIME_TO_SAMPLE_VOLTAGE 1000
 #define TIME_TO_SAMPLE_CURRENT 1000
 
-#define TIME_TO_PARSE_GPS 2000
+#define TIME_TO_PARSE_GPS 1000
+
+////// SENTENCE SPLIT SETTINGS //////
+#define MAX_SENTENCES_SPLIT 4
+#define MAX_SENTENCE_LENGTH 100
+char nmea_sentences [MAX_SENTENCES_SPLIT][MAX_SENTENCE_LENGTH]; // Store sentences separately
+
+/////////////////////////////////////
+
 
 
 /* Private variables ---------------------------------------------------------*/
@@ -33,17 +41,14 @@ uint32_t gps_aux = 0;
 // UART variables
 volatile uint32_t gps_buffer_index = 0;
 char gps_received;
-char gps_buffer[256];
+char gps_buffer[512];
 // Console print
 char tx_buff[256];
-
+// USART ERRORS
 volatile uint16_t ov_errors = 0;
 
 // GPS
 GPS_DATA gps_data;
-
-// Test variables
-uint16_t counter = 0;
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
@@ -61,16 +66,20 @@ int main(void)
   MX_GPIO_Init();
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
-  //MX_IWDG_Init();
+  MX_IWDG_Init();
 
   // USART GPS Interrupt configuration
   USART1->CR1 |= (1 << 2);  // Enable receiver mode
   USART1->CR1 |= (1 << 5);  // Enable RXNE interrupt
 
+  // Test parser
+  // char testing[100] = "$GPRMC,171640.087,A,3723.2475,N,12158.3416,W,0.13,309.62,120125,,,A*74";
+  char testing[100] = "$GPRMC,171640.087,A,,,,,0.13,309.62,120125,,,A*74";
+
   while (1)
   {
 	  // Refresh the watchdog
-	  //HAL_IWDG_Refresh(&hiwdg);
+	  HAL_IWDG_Refresh(&hiwdg);
 
 	  // Check if data is available to read UART
 	  if(USART1->ISR & (1 << 5)){
@@ -82,29 +91,30 @@ int main(void)
 		  // Check index for overflow
 		  if(gps_buffer_index >= sizeof(gps_buffer) - 1){
 			  gps_buffer[sizeof(gps_buffer)] = '\0';
-			  strcpy(tx_buff, gps_buffer);
 			  gps_buffer_index = 0;
 		  }
 		  *(gps_buffer + gps_buffer_index) = gps_received;
 		  gps_buffer_index ++;
 	  }
 
-	  if(HAL_GetTick() - gps_aux >= TIME_TO_PARSE_GPS){
-//		  if(gps_received == '\n' || gps_received == '\0'){
-//			gps_data = parseGPSData(gps_buffer);
-//			memset(gps_buffer, 0, sizeof(gps_buffer));
-//			gps_buffer_index = 0;
-//		  }else{
-//			rx_buff[gps_buffer_index] = (char)gps_received;
-//			gps_buffer_index ++;
-//		  }
+	  // Parse GPS
+	  if(HAL_GetTick() - gps_aux >= 0){
+		  splitNMEASentences(gps_buffer, nmea_sentences);
+
+		  // First sentence is trash
+		  for(uint8_t i=1; i < MAX_SENTENCES_SPLIT; i++){
+			  parseGPSData(nmea_sentences[i], &gps_data);
+		  }
+//		  parseGPSData(testing, &gps_data);
 		  gps_aux = HAL_GetTick();
 	  }
 
 	  // Transmit data through UART constantly
 	  if(HAL_GetTick() - uart_aux >= TIME_TO_PRINT_UART){
-		//snprintf(tx_buff, sizeof(tx_buff), "Overrun errors: %u, index: %lu\n", ov_errors, gps_buffer_index);
-		HAL_UART_Transmit(&huart2, (uint8_t *)tx_buff, strlen(tx_buff), 500);
+		snprintf(tx_buff, sizeof(tx_buff), "Time: %lu, Stat: %c, Date: %lu\n",
+				gps_data.GPRMC_data.fix_time, gps_data.GPRMC_data.status, gps_data.GPRMC_data.date);
+//		strcpy(tx_buff, nmea_sentences[3]);
+		HAL_UART_Transmit(&huart2, (uint8_t *)tx_buff, strlen(tx_buff), 200);
 		uart_aux = HAL_GetTick();
 	  }
 
