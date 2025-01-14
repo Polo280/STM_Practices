@@ -5,6 +5,10 @@
 #include <string.h>
 #include "main.h"
 
+// SPLITTER
+#define MAX_SENTENCES_SPLIT 4
+#define MAX_SENTENCE_LENGTH 100
+
 /////// NMEA SENTENCE TYPES ///////
 // Global Positioning System Fix Data
 typedef struct {
@@ -13,8 +17,8 @@ typedef struct {
 	uint8_t  sat_count;
 	float 	 horizontal_dilution;
 	float    altitude;
-	double   latitude;
-	double   longitude;
+	float    latitude;
+	float    longitude;
 	char 	 lon_direction;
 	char     lat_direction;
 } GPS_GPGGA_DATA;
@@ -22,11 +26,12 @@ typedef struct {
 // Recomented Minimum Specific GPS / Transit Data
 typedef struct {
 	uint32_t fix_time;
+	uint32_t date;
 	float 	 speed_knots;
 	float 	 track_angle;
 	float 	 mag_variation;
-	double 	 latitude;
-	double	 longitude;
+	float 	 latitude;
+	float	 longitude;
 	char 	 status;
 	char 	 lat_direction;
 	char 	 lon_direction;
@@ -78,17 +83,18 @@ typedef struct {
 typedef struct {
 	GPS_GPGGA_DATA GPGGA_data;
 	GPS_GPVTG_DATA GPVTG_data;
-	GPS_GPGSV_DATA GPGSV_data;
+	GPS_GPRMC_DATA GPRMC_data;
 } GPS_DATA;
 
 // Parsing functions
-GPS_GPGGA_DATA processGPGGA(char*);
-GPS_GPRMC_DATA processGPRMC(char*);
-GPS_GPGLL_DATA processGPGLL(char*);
-GPS_GPVTG_DATA processGPVTG(char*);
-GPS_GPGSA_DATA processGPGSA(char*);
-GPS_GPGSV_DATA processGPGSV(char*);
-GPS_GPZDA_DATA processGPZDA(char*);
-GPS_DATA parseGPSData(char*);
+void processGPGGA(const char*, GPS_GPGGA_DATA*);
+void processGPRMC(const char*, GPS_GPRMC_DATA*);
+void processGPGLL(const char*, GPS_GPGLL_DATA*);
+void processGPVTG(const char*, GPS_GPVTG_DATA*);
+void processGPGSA(const char*, GPS_GPGSA_DATA*);
+void processGPGSV(const char*, GPS_GPGSV_DATA*);
+void processGPZDA(const char*, GPS_GPZDA_DATA*);
+void parseGPSData(const char*, GPS_DATA*);
+void splitNMEASentences(const char *, char[MAX_SENTENCES_SPLIT][MAX_SENTENCE_LENGTH]);
 
 #endif /* NMEA_PARSER_H */

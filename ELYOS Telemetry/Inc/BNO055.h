@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 #include "main.h"
-#include "stm32f3xx_hal_i2c.h"
+#include "stm32l4xx_hal_i2c.h"
 
 #define BNO055_FUNC_RETURN uint8_t
 #define ERROR_DEFAULT           (uint8_t)(0)

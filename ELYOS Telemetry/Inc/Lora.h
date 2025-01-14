@@ -9,7 +9,7 @@ extern "C"{
 
 /////////// DEFINITIONS ///////////
 // #define BLUEPILL
-#define NUCLEO_F303RE
+#define ELYOS_TELEMETRY_L432KC
 
 // PINOUT
 #ifdef BLUEPILL
@@ -30,6 +30,15 @@ extern "C"{
 	#define LORA_DEFAULT_SCK_PIN  GPIO_PIN_5
 	#define LORA_DEFAULT_NSS_PIN  GPIO_PIN_6
 	#define LORA_DEFAULT_RST_PIN  GPIO_PIN_7
+#elif defined(ELYOS_TELEMETRY_L432KC)
+	#define LORA_DEFAULT_SPI_PORT GPIOB
+	#define LORA_DEFAULT_NSS_PORT GPIOA
+	#define LORA_DEFAULT_RST_PORT GPIOA
+	#define LORA_DEFAULT_MOSI_PIN GPIO_PIN_5
+	#define LORA_DEFAULT_MISO_PIN GPIO_PIN_4
+	#define LORA_DEFAULT_SCK_PIN  GPIO_PIN_3
+	#define LORA_DEFAULT_NSS_PIN  GPIO_PIN_4
+	#define LORA_DEFAULT_RST_PIN  GPIO_PIN_5
 #endif
 
 // SPI SETTINGS MACROS
@@ -149,6 +158,7 @@ uint8_t LoraBeginPacket(uint8_t);
 uint8_t LoraEndPacket(uint8_t);
 void LoraWrite(const uint8_t* , size_t);
 void LoraTransmit(const char*);
+void LoraSendRF(const char*);
 
 // Master Control
 void LoraEnd(void);

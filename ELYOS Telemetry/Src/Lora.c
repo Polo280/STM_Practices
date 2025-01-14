@@ -1,4 +1,5 @@
 #include <Lora.h>
+#include <string.h>
 
 // SPI Handler
 SPI_HandleTypeDef *spi_handler;
@@ -36,6 +37,7 @@ void LoraGPIOsConfig(LoraConfigStruct *configStruct){
     GPIO_InitStruct.Pin = configStruct->nss_pin;
     GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
+
     HAL_GPIO_Init(configStruct->nss_port, &GPIO_InitStruct);
 
     // Initialization of RST Line
@@ -54,7 +56,7 @@ uint8_t LoraDefaultInit(void){
 
 uint8_t LoraInit(LoraConfigStruct *loraConfig){
     // Configure GPIOS
-    LoraGPIOsConfig(loraConfig);
+    //LoraGPIOsConfig(loraConfig);  // Uncomment if you havent already configured your pins
 
     // Hardware Reset  (Optional but recommended)
     HAL_GPIO_WritePin(loraConfig->rst_port, loraConfig->rst_pin, GPIO_PIN_SET);  // RESET IS LOW OR HIGH?
@@ -125,8 +127,15 @@ void LoraWriteRegister(uint8_t address, uint8_t value){
 
 /////////////////////// FUNCTIONS USING REGISTER FUNCTIONALITY ///////////////////////
 
+// Use this to send data over RF, just pass the buffer containing characters as parameter
+void LoraSendRF(const char* buffer){
+	LoraBeginPacket(0);
+	LoraTransmit(buffer);
+	LoraEndPacket(0);
+}
+
 // Prepare to transmit
-void LoraTransmit(const char *buffer){
+void LoraTransmit(const char* buffer){
 	LoraWrite((uint8_t *)buffer, strlen(buffer));
 }
 
