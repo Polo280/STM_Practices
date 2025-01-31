@@ -14,13 +14,18 @@
 #define SHUNT_RESISTOR_VALUE 0.008
 
 ////////// Time control //////////
+#define TIME_TO_SAMPLE_CURRENT 200
+#define TIME_TO_SAMPLE_VOLTAGE 200
+#define TIME_TO_READ_IMU 	   200
+#define TIME_TO_PARSE_GPS      1000
+#define TIME_TO_SEND_LORA      500
+// DEBUG
+#define TIME_TO_PRINT_UART     500
 #define TIME_TO_BLINK 		   1000
-#define TIME_TO_PRINT_UART     1000
-#define TIME_TO_READ_IMU 	   500
-#define TIME_TO_PARSE_GPS      2000
-#define TIME_TO_SAMPLE_VOLTAGE 1000
-#define TIME_TO_SAMPLE_CURRENT 1000
-#define TIME_TO_SEND_LORA      3000
+
+////////// CONTROL MACROS //////////
+// If surpassed triggers system reset
+#define MAX_INVALID_IMU_SAMPLES 5
 
 ////// SENTENCE SPLIT SETTINGS (GPS) //////
 #define MAX_SENTENCES_SPLIT 4
@@ -39,6 +44,7 @@ I2C_HandleTypeDef hi2c1;
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 SPI_HandleTypeDef hspi3;
+IWDG_HandleTypeDef hiwdg;
 
 // Max ADC reading obtained at max battery capacity with current voltage divider resistor values considering ADC resolution bit number
 const float MAX_BATTERY_ADC_READING = BATTERY_MAX_VOLTAGE_V * VOLTAGE_DIVIDER_FACTOR * ADC1_RANGE / 3.3;
@@ -74,6 +80,9 @@ char nmea_sentences [MAX_SENTENCES_SPLIT][MAX_SENTENCE_LENGTH]; // NMEA Sentence
 // Console print
 char tx_buff[256];
 
+// Control variables
+uint8_t invalid_imu_samples = 0;
+
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
@@ -82,6 +91,7 @@ static void MX_USART2_UART_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_SPI3_Init(void);
+static void MX_IWDG_Init(void);
 
 static void telemetryInit(void);
 static void GPS_interruptHandler(void);
@@ -98,30 +108,38 @@ int main(void)
 
   while (1)
   {
+	  // Reload watchdog
+	  HAL_IWDG_Refresh(&hiwdg);
 	  // Check for GPS new data interrupt
 	  GPS_interruptHandler();
+	  // Check if IMU started well, if not trigger system reset to re-establish connection
+	  if(invalid_imu_samples >= MAX_INVALID_IMU_SAMPLES){
+		  __disable_irq();
+		  NVIC_SystemReset();
+	  }
 
+	  ////////////////// READ DATA //////////////////
 	  // Read current (amps) and battery voltage data
 	  if(HAL_GetTick() - curr_aux >= TIME_TO_SAMPLE_CURRENT){
 		readADCValues();
 		curr_aux = HAL_GetTick();
 	  }
-
 	  // Get IMU data
 	  if(HAL_GetTick() - imu_aux >= TIME_TO_READ_IMU){
 		// Read gyro euler angles
 		bno055_read_euler_hrp(&gyro_euler);
 		// Read accelerometer m/s²
 		bno055_read_acc_xyz(&accel_data);
-		// Update timestamp
+		// Check data integrity
+		invalid_imu_samples = (accel_data.z == 0)? invalid_imu_samples + 1 : 0;
 		imu_aux = HAL_GetTick();
 	  }
-
 	  // Parse GPS data in buffer
 	  if(HAL_GetTick() - gps_aux >= TIME_TO_PARSE_GPS){
 		  processGPS();
 		  gps_aux = HAL_GetTick();
 	  }
+	  ///////////////////////////////////////////////////
 
 	  // Construct string and send data over RF
 	  if(HAL_GetTick() - lora_aux >= TIME_TO_SEND_LORA){
@@ -132,9 +150,8 @@ int main(void)
 	  /////////////////// DEBUG TOOLS ///////////////////
 	  // Transmit data through UART constantly
 	  if(HAL_GetTick() - uart_aux >= TIME_TO_PRINT_UART){
-//		snprintf(tx_buff, sizeof(tx_buff), "Fix time: %lu, Status: %c, Date: %lu\n",
-//				 gps_data.GPRMC_data.fix_time, gps_data.GPRMC_data.status, gps_data.GPRMC_data.date);
-		HAL_UART_Transmit(&huart2, (uint8_t *)tx_buff, strlen(tx_buff), 100);
+//		strcpy(tx_buff, "lol\n");
+		HAL_UART_Transmit(&huart2, (uint8_t *)tx_buff, strlen(tx_buff), 200);
 		uart_aux = HAL_GetTick();
 	  }
 	  // BLINK
@@ -173,6 +190,11 @@ static void telemetryInit(void){
   // USART GPS Interrupt configuration
   USART1->CR1 |= (1 << 2);  // Enable receiver mode
   USART1->CR1 |= (1 << 5);  // Enable RXNE interrupt
+
+  // Init Watchdog
+  MX_IWDG_Init();
+
+  HAL_UART_Transmit(&huart2, "System Reset\n", strlen("System Reset\n"), 200);
 }
 
 static void GPS_interruptHandler(void){
@@ -444,6 +466,19 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
 }
+
+static void MX_IWDG_Init(void)
+{
+  hiwdg.Instance = IWDG;
+  hiwdg.Init.Prescaler = IWDG_PRESCALER_4;
+  hiwdg.Init.Window = 4095;
+  hiwdg.Init.Reload = 4095;
+  if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
 
 void Error_Handler(void)
 {
