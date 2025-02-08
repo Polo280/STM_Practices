@@ -8,17 +8,19 @@
 
 /*/////////////// MACROS /////////////////*/
 //////// Vehicle properties ////////
-#define BATTERY_MAX_VOLTAGE_V 50
+#define BATTERY_MAX_VOLTAGE_V  50
 #define VOLTAGE_DIVIDER_FACTOR 0.058823
-#define CURRENT_SENSE_GAIN 20.0
-#define SHUNT_RESISTOR_VALUE 0.008
+#define CURRENT_SENSE_GAIN     20.0
+#define SHUNT_RESISTOR_VALUE   0.008
 
 ////////// Time control //////////
-#define TIME_TO_SAMPLE_CURRENT 200
-#define TIME_TO_SAMPLE_VOLTAGE 200
-#define TIME_TO_READ_IMU 	   200
-#define TIME_TO_PARSE_GPS      1000
-#define TIME_TO_SEND_LORA      500
+#define TIME_TO_SAMPLE_CURRENT   200
+#define TIME_TO_SAMPLE_VOLTAGE   200
+#define TIME_TO_READ_IMU 	     200
+#define TIME_TO_PARSE_GPS        1000
+#define TIME_TO_SEND_LORA        500
+#define TIME_TO_CALCULATE_RPMS   500
+#define DEBOUNCE_TIME_REVS       50
 // DEBUG
 #define TIME_TO_PRINT_UART     500
 #define TIME_TO_BLINK 		   1000
@@ -60,6 +62,7 @@ uint32_t temp_aux = 0;
 uint32_t curr_aux = 0;
 uint32_t volt_aux = 0;
 uint32_t gps_aux = 0;
+uint32_t rpm_debounce_aux = 0;
 
 // ADC Measurements
 float battery_voltage = 0.0;
@@ -76,6 +79,9 @@ char gps_received;     // New byte received
 char gps_buffer[512];  // Received bytes buffer
 volatile uint32_t gps_buffer_index = 0;  // Control variable to know where to store new data
 char nmea_sentences [MAX_SENTENCES_SPLIT][MAX_SENTENCE_LENGTH]; // NMEA Sentence store
+
+// RPM calculation
+uint16_t rev_counter = 0;
 
 // Console print
 char tx_buff[256];
@@ -99,6 +105,7 @@ static uint16_t pollFromChannelADC(uint32_t);
 static void buildPacketRF(void);
 static void readADCValues(void);
 static void processGPS(void);
+static void checkNewRev(void);
 
 // Main program
 int main(void)
@@ -116,6 +123,12 @@ int main(void)
 	  if(invalid_imu_samples >= MAX_INVALID_IMU_SAMPLES){
 		  __disable_irq();
 		  NVIC_SystemReset();
+	  }
+
+	  // Check for RPM interrupt with debounce
+	  if(HAL_GetTick() - rpm_debounce_aux >= DEBOUNCE_TIME_REVS){
+		  checkNewRev();
+		  rpm_debounce_aux = HAL_GetTick();
 	  }
 
 	  ////////////////// READ DATA //////////////////
@@ -216,6 +229,16 @@ static void GPS_interruptHandler(void){
   }
 }
 
+// Interrupt handler for RPM GPIO
+static void checkNewRev(void){
+	// If rising edge interrupt is detected
+	if(EXTI->PR1 & EXTI_PR1_PIF1){
+		rev_counter ++;
+		// Clear interrupt flag
+		EXTI->PR1 |= EXTI_PR1_PIF1;
+	}
+}
+
 static void processGPS(void){
 	splitNMEASentences(gps_buffer, nmea_sentences);
 	// First sentence generally is trash
@@ -268,10 +291,12 @@ static void buildPacketRF(void){
    * RPMS if they will be measured
    * Temperature is relevant?
   */
-  snprintf(tx_buff, sizeof(tx_buff), "S,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.4f,%.4f,%c\n",
-  current_amps, battery_voltage, accel_data.x, accel_data.y, accel_data.z,
-  gyro_euler.h, gyro_euler.r, gyro_euler.p, gps_data.GPRMC_data.latitude, gps_data.GPRMC_data.longitude,
-  gps_data.GPRMC_data.status);
+//  snprintf(tx_buff, sizeof(tx_buff), "S,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.4f,%.4f,%c\n",
+//  current_amps, battery_voltage, accel_data.x, accel_data.y, accel_data.z,
+//  gyro_euler.h, gyro_euler.r, gyro_euler.p, gps_data.GPRMC_data.latitude, gps_data.GPRMC_data.longitude,
+//  gps_data.GPRMC_data.status);
+
+	snprintf(tx_buff, sizeof(tx_buff), "Revs: %d\n", rev_counter);
 }
 
 //////////////////////////////////////////////
@@ -437,33 +462,46 @@ static void MX_SPI3_Init(void)
   }
 }
 
+
 static void MX_GPIO_Init(void)
 {
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
-  /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
+ GPIO_InitTypeDef GPIO_InitStruct = {0};
 
-  /*Configure GPIO pin : PB0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+ /* GPIO Ports Clock Enable */
+ __HAL_RCC_GPIOA_CLK_ENABLE();
+ __HAL_RCC_GPIOB_CLK_ENABLE();
 
-  /*Configure GPIO pins : PA9 PA10 */
-  GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_10;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF4_I2C1;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+ /*Configure GPIO pin Output Level */
+ HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : PB1 */
-  GPIO_InitStruct.Pin = GPIO_PIN_1;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+ /*Configure GPIO pin Output Level */
+ HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
+
+ /*Configure GPIO pin : PA1 */
+ GPIO_InitStruct.Pin = GPIO_PIN_1;
+ GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+ GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+ HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+ /*Configure GPIO pin : PA4 */
+ GPIO_InitStruct.Pin = GPIO_PIN_4;
+ GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+ GPIO_InitStruct.Pull = GPIO_NOPULL;
+ GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+ HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+ /*Configure GPIO pin : PB0 */
+ GPIO_InitStruct.Pin = GPIO_PIN_0;
+ GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+ GPIO_InitStruct.Pull = GPIO_PULLUP;
+ HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+ /*Configure GPIO pin : PB1 */
+ GPIO_InitStruct.Pin = GPIO_PIN_1;
+ GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+ GPIO_InitStruct.Pull = GPIO_NOPULL;
+ GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+ HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
 }
 
