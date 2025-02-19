@@ -241,6 +241,7 @@ static void checkNewRev(void){
 
 static void processGPS(void){
 	splitNMEASentences(gps_buffer, nmea_sentences);
+	// strcpy(tx_buff, gps_buffer);
 	// First sentence generally is trash
 	for(uint8_t i=1; i < MAX_SENTENCES_SPLIT; i++){
 	    parseGPSData(nmea_sentences[i], &gps_data);
@@ -291,12 +292,12 @@ static void buildPacketRF(void){
    * RPMS if they will be measured
    * Temperature is relevant?
   */
-//  snprintf(tx_buff, sizeof(tx_buff), "S,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.4f,%.4f,%c\n",
-//  current_amps, battery_voltage, accel_data.x, accel_data.y, accel_data.z,
-//  gyro_euler.h, gyro_euler.r, gyro_euler.p, gps_data.GPRMC_data.latitude, gps_data.GPRMC_data.longitude,
-//  gps_data.GPRMC_data.status);
+  snprintf(tx_buff, sizeof(tx_buff), "S,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.4f,%.4f,%c\n",
+  current_amps, battery_voltage, accel_data.x, accel_data.y, accel_data.z,
+  gyro_euler.h, gyro_euler.r, gyro_euler.p, gps_data.GPRMC_data.latitude, gps_data.GPRMC_data.longitude,
+  gps_data.GPRMC_data.status);
 
-	snprintf(tx_buff, sizeof(tx_buff), "Revs: %d\n", rev_counter);
+  //snprintf(tx_buff, sizeof(tx_buff), "Revs: %d\n", rev_counter);
 }
 
 //////////////////////////////////////////////

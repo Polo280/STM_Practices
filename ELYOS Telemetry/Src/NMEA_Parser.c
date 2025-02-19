@@ -104,30 +104,46 @@ void processGPRMC(const char* sentence, GPS_GPRMC_DATA* rmc_data){
 				case 2:
 					// Status code (A = Active, V = Void)
 					validator = aux_buff[0];
+					if(validator != 'V' && validator != 'A'){
+						validator = 'X';   // NULL or invalid data
+					}
 					rmc_data->status = validator;
 					break;
 				case 3:
 					// Latitude
 					if(validator == 'A'){
-						rmc_data->latitude = strtof(aux_buff, NULL);
+						float NMEA_lat = strtof(aux_buff, NULL);
+						// Format to decimal degrees
+						int degrees = (int)(NMEA_lat / 100);
+						float minutes = NMEA_lat - (degrees * 100);
+						rmc_data->latitude = degrees + (minutes / 60.0);
 					}
 					break;
 				case 4:
 					// Latitude direction
 					if(validator == 'A'){
 						rmc_data->lat_direction = aux_buff[0];
+						if(rmc_data->lat_direction == 'S'){
+							rmc_data->latitude *= -1 ;
+						}
 					}
 					break;
 				case 5:
 					// Longitude
 					if(validator == 'A'){
-						rmc_data->longitude = strtof(aux_buff, NULL);
+						float NMEA_lon = strtof(aux_buff, NULL);
+						int lon_degrees = (int)(NMEA_lon / 100);
+						float lon_minutes = NMEA_lon - (lon_degrees * 100);
+						rmc_data->longitude = lon_degrees + (lon_minutes / 60.0);
 					}
 					break;
 				case 6:
 					// Longitude direction
 					if(validator == 'A'){
 						rmc_data->lon_direction = aux_buff[0];
+						if(rmc_data->lon_direction == 'W'){
+							rmc_data->longitude *= -1 ;
+						}
 					}
 					break;
 				case 7:
